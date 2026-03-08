@@ -28,7 +28,7 @@
     PrivateData = @{
         PSData = @{
             Tags       = @('Intune', 'LAPS', 'Graph', 'Security', 'WPF')
-            ProjectUri = 'https://github.com/joel/IntuneLaps'
+            ProjectUri = 'https://github.com/0125joel/IntuneLaps'
         }
     }
 }

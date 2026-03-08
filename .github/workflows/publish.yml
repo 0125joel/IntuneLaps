@@ -1,0 +1,35 @@
+name: Publish to PowerShell Gallery
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Update module version in manifest
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $psd1 = Get-Content .\IntuneLaps.psd1 -Raw
+          $psd1 = $psd1 -replace "ModuleVersion\s*=\s*'[^']*'", "ModuleVersion     = '$version'"
+          Set-Content .\IntuneLaps.psd1 -Value $psd1 -NoNewline
+
+      - name: Publish to PowerShell Gallery
+        shell: pwsh
+        run: |
+          Publish-Module -Path . -NuGetApiKey "${{ secrets.PSGALLERY_API_KEY }}" -Verbose

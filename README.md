@@ -28,7 +28,7 @@ A PowerShell module with WPF GUI for securely retrieving **Intune LAPS** (Local 
 
 ```powershell
 # Clone the repository
-git clone https://github.com/joel/IntuneLaps.git
+git clone https://github.com/0125joel/IntuneLaps.git
 cd IntuneLaps
 
 # Import the module (Graph dependency is auto-installed if missing)
