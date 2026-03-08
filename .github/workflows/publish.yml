@@ -29,7 +29,19 @@ jobs:
           $psd1 = $psd1 -replace "ModuleVersion\s*=\s*'[^']*'", "ModuleVersion     = '$version'"
           Set-Content .\IntuneLaps.psd1 -Value $psd1 -NoNewline
 
+      - name: Stage module files
+        shell: pwsh
+        run: |
+          $staging = "$env:RUNNER_TEMP\IntuneLaps"
+          New-Item -ItemType Directory -Path $staging | Out-Null
+          Copy-Item IntuneLaps.psd1  $staging
+          Copy-Item IntuneLaps.psm1  $staging
+          Copy-Item LICENSE          $staging
+          Copy-Item Public    -Destination $staging -Recurse
+          Copy-Item Private   -Destination $staging -Recurse
+          Copy-Item Resources -Destination $staging -Recurse
+
       - name: Publish to PowerShell Gallery
         shell: pwsh
         run: |
-          Publish-Module -Path . -NuGetApiKey "${{ secrets.PSGALLERY_API_KEY }}" -Verbose
+          Publish-Module -Path "$env:RUNNER_TEMP\IntuneLaps" -NuGetApiKey "${{ secrets.PSGALLERY_API_KEY }}" -Verbose
