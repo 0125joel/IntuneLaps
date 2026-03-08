@@ -12,18 +12,25 @@ $ErrorActionPreference = 'Stop'
 
 # ─── Bootstrap: ensure Microsoft.Graph.Authentication is available ────────────
 [string]$GraphAuthModule = 'Microsoft.Graph.Authentication'
-if (-not (Get-Module -ListAvailable -Name $GraphAuthModule)) {
-    Write-Host "Installing required module: $GraphAuthModule ..." -ForegroundColor Cyan
+[version]$GraphAuthMinVersion = '2.0.0'
+
+$AvailableVersion = Get-Module -ListAvailable -Name $GraphAuthModule |
+    Where-Object { $_.Version -ge $GraphAuthMinVersion } |
+    Sort-Object Version -Descending |
+    Select-Object -First 1
+
+if (-not $AvailableVersion) {
+    Write-Host "Installing required module: $GraphAuthModule (minimum v$GraphAuthMinVersion)..." -ForegroundColor Cyan
     try {
-        Install-Module -Name $GraphAuthModule -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
+        Install-Module -Name $GraphAuthModule -Scope CurrentUser -Force -AllowClobber -MinimumVersion $GraphAuthMinVersion.ToString() -ErrorAction Stop
     }
     catch {
-        throw "Could not install '$GraphAuthModule'. Please run: Install-Module $GraphAuthModule -Scope CurrentUser"
+        throw "Could not install '$GraphAuthModule' v$($GraphAuthMinVersion)+. Please run: Install-Module $GraphAuthModule -MinimumVersion $GraphAuthMinVersion -Scope CurrentUser"
     }
 }
 
 if (-not (Get-Module -Name $GraphAuthModule)) {
-    Import-Module -Name $GraphAuthModule -ErrorAction Stop
+    Import-Module -Name $GraphAuthModule -MinimumVersion $GraphAuthMinVersion.ToString() -ErrorAction Stop
 }
 
 # Discover and dot-source Private functions

@@ -227,6 +227,7 @@
                     <DataGridTextColumn Header="OS"             Binding="{Binding OperatingSystem}"   Width="100"/>
                     <DataGridTextColumn Header="OS Version"     Binding="{Binding OsVersion}"         Width="110"/>
                     <DataGridTextColumn Header="State"          Binding="{Binding ManagementState}"   Width="90"/>
+                    <DataGridTextColumn Header="LAPS Active"    Binding="{Binding LapsActive}"        Width="90"/>
                     <DataGridTextColumn Header="Last Sync"      Binding="{Binding LastSyncDateTime}"  Width="150"/>
                 </DataGrid.Columns>
             </DataGrid>
@@ -350,7 +351,7 @@
                             IsEnabled="False"
                             Width="34" Height="34"
                             x:Uid="BtnTogglePassword">
-                        <TextBlock x:Name="TxtToggleIcon" Text="👁" FontSize="14"/>
+                        <TextBlock x:Name="TxtToggleIcon" Text="[Show]" FontSize="14"/>
                     </Button>
 
                     <!-- Copy password button -->

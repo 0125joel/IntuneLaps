@@ -109,8 +109,6 @@ Describe 'Get-IntuneLapsCredential' {
     }
 
     It 'Returns decoded password when -IncludePassword is specified and user has permissions' {
-        $Script:EncodedPw = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes('S3cur3!Pass'))
-
         Mock -ModuleName IntuneLaps Invoke-MgGraphRequest {
             param($Method, $Uri)
             if ($Uri -match '\$select=credentials') {

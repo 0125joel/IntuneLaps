@@ -55,24 +55,27 @@ function Find-IntuneLapsDevice {
                 }
             }
 
+            [string]$SelectFields = 'id,azureADDeviceId,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState'
             if ($Filter) {
                 Write-Verbose "Querying Graph API with filter: $Filter"
-                [hashtable]$QueryParams = @{
-                    Method = 'GET'
-                    Uri    = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=$Filter&`$select=id,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState"
-                }
+                [string]$NextUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=$Filter&`$select=$SelectFields"
             }
             else {
                 Write-Verbose 'Querying Graph API for all managed devices (no filter)'
-                [hashtable]$QueryParams = @{
-                    Method = 'GET'
-                    Uri    = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=id,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState"
-                }
+                [string]$NextUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=$SelectFields"
             }
 
-            $Response = Invoke-MgGraphRequest @QueryParams
+            # Paginate through all results via @odata.nextLink (Graph caps at 100 items per page)
+            $AllDevices = [System.Collections.Generic.List[object]]::new()
+            do {
+                $Response = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $NextUri }
+                if ($Response.value) {
+                    foreach ($Device in $Response.value) { $AllDevices.Add($Device) }
+                }
+                $NextUri = $Response.'@odata.nextLink'
+            } while ($NextUri)
 
-            if ($null -eq $Response -or $null -eq $Response.value -or $Response.value.Count -eq 0) {
+            if ($AllDevices.Count -eq 0) {
                 if ($DeviceName) {
                     Write-Warning "No Intune-managed devices found matching '$DeviceName'."
                 } else {
@@ -81,9 +84,10 @@ function Find-IntuneLapsDevice {
                 return
             }
 
-            foreach ($Device in $Response.value) {
+            foreach ($Device in $AllDevices) {
                 [PSCustomObject]@{
-                    DeviceId          = $Device.id
+                    DeviceId          = $Device.azureADDeviceId
+                    IntuneDeviceId    = $Device.id
                     DeviceName        = $Device.deviceName
                     OperatingSystem   = $Device.operatingSystem
                     OsVersion         = $Device.osVersion

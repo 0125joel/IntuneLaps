@@ -35,12 +35,12 @@ function Show-IntuneLapsGui {
         if ($CurrentState -ne [System.Threading.ApartmentState]::STA) {
             Write-Verbose 'Running in MTA (PowerShell 7). Launching WPF GUI on a dedicated STA thread...'
 
+            # Capture the manifest path before entering the thread — $PSCommandPath is $null inside a Thread scriptblock
+            [string]$ManifestPath = Join-Path -Path $PSScriptRoot -ChildPath '..\IntuneLaps.psd1'
             $StaThread = [System.Threading.Thread]::new({
-                # Re-import the module inside the new thread context
-                $ModuleRoot = Split-Path -Parent $PSCommandPath
-                Import-Module (Join-Path $ModuleRoot '..\IntuneLaps.psd1') -Force -ErrorAction SilentlyContinue
+                Import-Module $ManifestPath -Force -ErrorAction Stop
                 Show-IntuneLapsGui
-            })
+            }.GetNewClosure())
             $StaThread.SetApartmentState([System.Threading.ApartmentState]::STA)
             $StaThread.IsBackground = $true
             $StaThread.Start()
@@ -165,6 +165,32 @@ function Show-IntuneLapsGui {
             $script:ClipTimer.Start()
         }
 
+        # ─── Helper: Get all device names that have a LAPS record ───────────────
+        function Get-LapsActiveDeviceNames {
+            # Returns a case-insensitive HashSet of deviceNames with LAPS records,
+            # or $null if the call fails (e.g. insufficient permissions).
+            $LapsNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            try {
+                [string]$Uri = "https://graph.microsoft.com/v1.0/directory/deviceLocalCredentials?`$select=id,deviceName"
+                do {
+                    $Response = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $Uri }
+                    if ($Response.value) {
+                        foreach ($Entry in $Response.value) {
+                            if (-not [string]::IsNullOrEmpty($Entry.deviceName)) {
+                                $null = $LapsNames.Add($Entry.deviceName)
+                            }
+                        }
+                    }
+                    $Uri = $Response.'@odata.nextLink'
+                } while ($Uri)
+                return $LapsNames
+            }
+            catch {
+                Write-Verbose "Could not retrieve LAPS device list: $_"
+                return $null
+            }
+        }
+
         # ─── Helper: Search Devices ───────────────────────────────────────────────
         function Invoke-DeviceSearch {
             [string]$Query = $TxtSearch.Text.Trim()
@@ -196,7 +222,22 @@ function Show-IntuneLapsGui {
                     return
                 }
 
-                $GridDevices.ItemsSource = $Devices
+                # Enrich each device with LAPS Active status via a single bulk call
+                $LapsActiveNames = Get-LapsActiveDeviceNames
+                $EnrichedDevices = @(foreach ($Dev in $Devices) {
+                    [PSCustomObject]@{
+                        DeviceId         = $Dev.DeviceId
+                        DeviceName       = $Dev.DeviceName
+                        OperatingSystem  = $Dev.OperatingSystem
+                        OsVersion        = $Dev.OsVersion
+                        ManagementState  = $Dev.ManagementState
+                        LastSyncDateTime = $Dev.LastSyncDateTime
+                        LapsActive       = if ($null -eq $LapsActiveNames) { '?' }
+                                           elseif ($LapsActiveNames.Contains($Dev.DeviceName)) { 'Yes' }
+                                           else { 'No' }
+                    }
+                })
+                $GridDevices.ItemsSource = $EnrichedDevices
                 Update-Status "$($Devices.Count) device(s) found. Select a device below."
                 $LblSelectedDevice.Text = '- select a device'
             }
@@ -285,6 +326,11 @@ function Show-IntuneLapsGui {
 
             try {
                 $Cred = Get-IntuneLapsCredential -DeviceId $DeviceId -IncludePassword:$CanReadPassword
+
+                if ($null -eq $Cred) {
+                    Update-Status 'No LAPS record found for this device. Ensure LAPS is configured and the device has checked in recently.'
+                    return
+                }
 
                 $TxtUsername.Text = $Cred.AccountName
                 $BtnCopyUsername.IsEnabled = (-not [string]::IsNullOrEmpty($Cred.AccountName))

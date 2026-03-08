@@ -52,7 +52,7 @@ function Get-IntuneLapsCredential {
             [string]$MetadataUri = "https://graph.microsoft.com/v1.0/directory/deviceLocalCredentials/$DeviceId"
 
             Write-Verbose "Fetching LAPS metadata for device: $DeviceId"
-            $MetadataResponse = Invoke-MgGraphRequest -Method GET -Uri $MetadataUri
+            $MetadataResponse = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $MetadataUri }
 
             [string]$DeviceName       = $MetadataResponse.deviceName
             [string]$LastBackup       = $MetadataResponse.lastBackupDateTime
@@ -66,10 +66,10 @@ function Get-IntuneLapsCredential {
             if ($IncludePassword) {
                 Write-Verbose 'Requesting LAPS password (requires elevated permissions)...'
 
-                [string]$PasswordUri = "https://graph.microsoft.com/v1.0/directory/deviceLocalCredentials/$DeviceId?`$select=credentials"
+                [string]$PasswordUri = "https://graph.microsoft.com/v1.0/directory/deviceLocalCredentials/$DeviceId" + '?%24select=id,credentials'
 
                 try {
-                    $CredResponse = Invoke-MgGraphRequest -Method GET -Uri $PasswordUri
+                    $CredResponse = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $PasswordUri }
 
                     if ($CredResponse.credentials -and $CredResponse.credentials.Count -gt 0) {
                         # Return the most recent credential (first entry = latest backup)
@@ -81,7 +81,7 @@ function Get-IntuneLapsCredential {
                 }
                 catch {
                     # HTTP 403 = insufficient permissions — surface a clean message, don't crash
-                    if ($_.Exception.Response.StatusCode -eq 403 -or $_ -match '403') {
+                    if ("$_" -match '\b403\b') {
                         Write-Warning "Insufficient permissions to retrieve the LAPS password for device '$DeviceName'. Your account requires the 'Cloud Device Administrator' or 'Intune Administrator' Entra role."
                     }
                     else {
@@ -90,11 +90,7 @@ function Get-IntuneLapsCredential {
                 }
             }
             else {
-                # Metadata-only: attempt to get accountName without password
-                [string]$MetaCredsUri = "https://graph.microsoft.com/v1.0/directory/deviceLocalCredentials/$DeviceId"
-                $MetaCreds = Invoke-MgGraphRequest -Method GET -Uri $MetaCredsUri
-                # accountName is not in the standard metadata response without $select=credentials,
-                # but deviceName is always present — note this limitation
+                # Metadata-only: accountName is not returned without $select=credentials
                 $AccountName = '(Requires elevated permission to view)'
             }
 
@@ -109,9 +105,9 @@ function Get-IntuneLapsCredential {
             }
         }
         catch {
-            # 404 means the device has no LAPS record
-            if ($_ -match '404') {
-                Write-Warning "No LAPS credential record found for device ID '$DeviceId'. Ensure LAPS is configured and the device has checked in."
+            # 404 or 400 "could not be found" = device has no LAPS record in this tenant
+            if ("$_" -match '\b404\b' -or ("$_" -match '\b400\b' -and "$_" -match 'could not be found')) {
+                Write-Warning "No LAPS credential record found for device '$DeviceId'. Ensure LAPS is configured and the device has checked in recently."
             }
             else {
                 Write-Error "Failed to retrieve LAPS credential for device '$DeviceId': $_"
