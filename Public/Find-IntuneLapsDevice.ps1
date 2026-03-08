@@ -59,14 +59,14 @@ function Find-IntuneLapsDevice {
                 Write-Verbose "Querying Graph API with filter: $Filter"
                 [hashtable]$QueryParams = @{
                     Method = 'GET'
-                    Uri    = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=$Filter&`$select=id,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState,joinType"
+                    Uri    = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=$Filter&`$select=id,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState"
                 }
             }
             else {
                 Write-Verbose 'Querying Graph API for all managed devices (no filter)'
                 [hashtable]$QueryParams = @{
                     Method = 'GET'
-                    Uri    = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=id,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState,joinType"
+                    Uri    = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=id,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState"
                 }
             }
 
@@ -88,7 +88,6 @@ function Find-IntuneLapsDevice {
                     OperatingSystem   = $Device.operatingSystem
                     OsVersion         = $Device.osVersion
                     ManagementState   = $Device.managementState
-                    JoinType          = $Device.joinType
                     LastSyncDateTime  = $Device.lastSyncDateTime
                 }
             }

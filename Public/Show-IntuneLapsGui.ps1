@@ -112,6 +112,7 @@ function Show-IntuneLapsGui {
         $TxtSearch         = $Window.FindName('TxtSearch')
         $BtnSearch         = $Window.FindName('BtnSearch')
         $BtnConnect        = $Window.FindName('BtnConnect')
+        $BtnDisconnect     = $Window.FindName('BtnDisconnect')
         $GridDevices       = $Window.FindName('GridDevices')
         $LblSelectedDevice = $Window.FindName('LblSelectedDevice')
         $BtnGetCredentials = $Window.FindName('BtnGetCredentials')
@@ -213,10 +214,32 @@ function Show-IntuneLapsGui {
 
                 Update-Status "Signed in as: $($ConnectResult.Account)" -Level $Level
                 $BtnSearch.IsEnabled = $true
+                $BtnDisconnect.IsEnabled = $true
                 Invoke-DeviceSearch
             }
             catch {
                 Update-Status "Sign in failed: $_"
+            }
+        })
+
+        # ─── EVENT: Sign Out ──────────────────────────────────────────────────────
+        $BtnDisconnect.Add_Click({
+            Update-Status 'Signing out...'
+            try {
+                Disconnect-IntuneLaps -ErrorAction SilentlyContinue
+                Update-Status 'Not connected - click Sign In to authenticate'
+                $BtnSearch.IsEnabled = $false
+                $BtnDisconnect.IsEnabled = $false
+                $GridDevices.ItemsSource = $null
+                $LblSelectedDevice.Text = '- select a device'
+                $BtnGetCredentials.IsEnabled = $false
+                $TxtUsername.Text = ''
+                $PwdPassword.Password = ''
+                $TxtPassword.Text = ''
+                $script:PlainPassword = $null
+            }
+            catch {
+                Update-Status "Sign out failed: $_"
             }
         })
 
@@ -335,23 +358,27 @@ function Show-IntuneLapsGui {
                     [string]$Level = Test-LapsPermission
                     Update-Status "Already signed in as: $($Ctx.Account)" -Level $Level
                     $BtnSearch.IsEnabled = $true
+                    $BtnDisconnect.IsEnabled = $true
                     Invoke-DeviceSearch
                 }
                 else {
                     Update-Status 'Not connected - click Sign In to authenticate.'
                     $BtnSearch.IsEnabled = $false
+                    $BtnDisconnect.IsEnabled = $false
                 }
             }
             catch {
                 Update-Status 'Not connected - click Sign In to authenticate.'
                 $BtnSearch.IsEnabled = $false
+                $BtnDisconnect.IsEnabled = $false
             }
         })
 
-        # ─── Clear clipboard on window close ─────────────────────────────────────
+        # ─── Clear clipboard and disconnect on window close ──────────────────────
         $Window.Add_Closing({
             if ($script:ClipTimer) { $script:ClipTimer.Stop() }
             [System.Windows.Clipboard]::Clear()
+            Disconnect-IntuneLaps -ErrorAction SilentlyContinue
         })
 
         # ─── Show the window ──────────────────────────────────────────────────────

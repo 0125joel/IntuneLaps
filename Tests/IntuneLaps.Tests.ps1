@@ -117,7 +117,7 @@ Describe 'Get-IntuneLapsCredential' {
                 @{
                     id = 'aaaa-1111'; deviceName = 'DESKTOP-001'
                     lastBackupDateTime = '2024-01-01'; refreshDateTime = '2024-06-01'
-                    credentials = @(@{ accountName = 'LocalAdmin'; accountSid = 'S-1-5'; backupDateTime = '2024-01-01'; passwordBase64 = 'UzAzAGMAdQByADMAMQBQAGEAcwBzAA==' })
+                    credentials = @(@{ accountName = 'LocalAdmin'; accountSid = 'S-1-5'; backupDateTime = '2024-01-01'; passwordBase64 = 'UwAzAGMAdQByADMAIQBQAGEAcwBzAA==' })
                 }
             } else {
                 @{ id = 'aaaa-1111'; deviceName = 'DESKTOP-001'; lastBackupDateTime = '2024-01-01'; refreshDateTime = '2024-06-01' }

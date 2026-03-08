@@ -181,6 +181,8 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <TextBox x:Name="TxtSearch"
@@ -204,6 +206,14 @@
                     Content="🔑  Sign In"
                     Height="36"
                     x:Uid="BtnConnect"/>
+
+            <Button x:Name="BtnDisconnect"
+                    Grid.Column="6"
+                    Style="{StaticResource SecondaryButton}"
+                    Content="🚪  Sign Out"
+                    Height="36"
+                    IsEnabled="False"
+                    x:Uid="BtnDisconnect"/>
         </Grid>
 
         <!-- ===== RESULTS DATAGRID ===== -->
