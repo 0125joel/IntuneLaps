@@ -67,13 +67,20 @@ function Find-IntuneLapsDevice {
 
             # Paginate through all results via @odata.nextLink (Graph caps at 100 items per page)
             $AllDevices = [System.Collections.Generic.List[object]]::new()
+            [int]$Page = 0
             do {
+                $Page++
+                Write-Progress -Activity 'Find-IntuneLapsDevice' `
+                               -Status "Loading devices... ($($AllDevices.Count) loaded, page $Page)" `
+                               -PercentComplete -1
+
                 $Response = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $NextUri }
                 if ($Response.value) {
                     foreach ($Device in $Response.value) { $AllDevices.Add($Device) }
                 }
                 $NextUri = $Response.'@odata.nextLink'
             } while ($NextUri)
+            Write-Progress -Activity 'Find-IntuneLapsDevice' -Completed
 
             if ($AllDevices.Count -eq 0) {
                 if ($DeviceName) {

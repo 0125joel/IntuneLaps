@@ -279,16 +279,39 @@
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6">
-            <DataGrid x:Name="GridDevices" x:Uid="GridDevices">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Device Name"     Binding="{Binding DeviceName}"       Width="*"/>
-                    <DataGridTextColumn Header="OS"             Binding="{Binding OperatingSystem}"   Width="100"/>
-                    <DataGridTextColumn Header="OS Version"     Binding="{Binding OsVersion}"         Width="110"/>
-                    <DataGridTextColumn Header="State"          Binding="{Binding ManagementState}"   Width="90"/>
-                    <DataGridTextColumn Header="LAPS Active"    Binding="{Binding LapsActive}"        Width="90"/>
-                    <DataGridTextColumn Header="Last Sync"      Binding="{Binding LastSyncDateTime}"  Width="150"/>
-                </DataGrid.Columns>
-            </DataGrid>
+            <Grid>
+                <DataGrid x:Name="GridDevices" x:Uid="GridDevices">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Device Name"     Binding="{Binding DeviceName}"       Width="*"/>
+                        <DataGridTextColumn Header="OS"             Binding="{Binding OperatingSystem}"   Width="100"/>
+                        <DataGridTextColumn Header="OS Version"     Binding="{Binding OsVersion}"         Width="110"/>
+                        <DataGridTextColumn Header="State"          Binding="{Binding ManagementState}"   Width="90"/>
+                        <DataGridTextColumn Header="LAPS Active"    Binding="{Binding LapsActive}"        Width="90"/>
+                        <DataGridTextColumn Header="Last Sync"      Binding="{Binding LastSyncDateTime}"  Width="150"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Loading overlay — shown during device fetch + LAPS enrichment -->
+                <Border x:Name="PnlLoading"
+                        Background="#CC1E1E2E"
+                        CornerRadius="5"
+                        Visibility="Collapsed"
+                        Panel.ZIndex="10">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <ProgressBar IsIndeterminate="True"
+                                     Width="220" Height="4"
+                                     Foreground="{StaticResource AccentBrush}"
+                                     Background="Transparent"
+                                     BorderThickness="0"/>
+                        <TextBlock x:Name="TxtLoadingStatus"
+                                   Text="Loading devices..."
+                                   Foreground="{StaticResource ForegroundBrush}"
+                                   FontSize="13"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,12,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Border>
 
         <!-- ===== CREDENTIALS PANEL ===== -->

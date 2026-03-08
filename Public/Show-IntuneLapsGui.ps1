@@ -125,6 +125,8 @@ function Show-IntuneLapsGui {
         $LblStatus         = $Window.FindName('LblStatus')
         $LblPermissionLevel= $Window.FindName('LblPermissionLevel')
         $PrgLoading        = $Window.FindName('PrgLoading')
+        $PnlLoading        = $Window.FindName('PnlLoading')
+        $TxtLoadingStatus  = $Window.FindName('TxtLoadingStatus')
 
         # ─── Internal state ────────────────────────────────────────────────────────
         [bool]$script:PasswordVisible  = $false
@@ -192,29 +194,56 @@ function Show-IntuneLapsGui {
             }
         }
 
+        # ─── Helper: force WPF to process pending render/layout work ─────────────
+        function Invoke-DispatcherFlush {
+            $Window.Dispatcher.Invoke(
+                [Action]{},
+                [System.Windows.Threading.DispatcherPriority]::Background
+            )
+        }
+
         # ─── Helper: Search Devices ───────────────────────────────────────────────
         function Invoke-DeviceSearch {
             [string]$Query = $TxtSearch.Text.Trim()
+
+            $GridDevices.ItemsSource     = $null
+            $BtnGetCredentials.IsEnabled = $false
+            $LblSelectedDevice.Text      = 'Searching...'
+            $PnlLoading.Visibility       = [System.Windows.Visibility]::Visible
+            $TxtLoadingStatus.Text       = 'Loading devices...'
+            $PrgLoading.Visibility       = [System.Windows.Visibility]::Visible
 
             if ($Query) {
                 Update-Status "Searching for devices matching '$Query'..."
             } else {
                 Update-Status 'Fetching all managed devices...'
             }
-
-            $GridDevices.ItemsSource = $null
-            $BtnGetCredentials.IsEnabled = $false
-            $LblSelectedDevice.Text = 'Searching...'
-            $PrgLoading.Visibility = [System.Windows.Visibility]::Visible
+            Invoke-DispatcherFlush
 
             try {
+                # ── Inline pagination (mirrors Find-IntuneLapsDevice) so we can
+                #    update the overlay after every page of results.
+                [string]$SelectFields = 'id,azureADDeviceId,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState'
                 if ($Query) {
-                    [System.Collections.Generic.List[PSCustomObject]]$Devices = Find-IntuneLapsDevice -DeviceName $Query
+                    [string]$NextUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=startsWith(deviceName,'$Query')&`$select=$SelectFields"
                 } else {
-                    [System.Collections.Generic.List[PSCustomObject]]$Devices = Find-IntuneLapsDevice
+                    [string]$NextUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=$SelectFields"
                 }
 
-                if ($null -eq $Devices -or $Devices.Count -eq 0) {
+                $RawDevices = [System.Collections.Generic.List[object]]::new()
+                do {
+                    $Response = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $NextUri }
+                    if ($Response.value) {
+                        foreach ($Device in $Response.value) { $RawDevices.Add($Device) }
+                    }
+                    $NextUri = $Response.'@odata.nextLink'
+
+                    $TxtLoadingStatus.Text = "Loading devices... ($($RawDevices.Count) loaded)"
+                    Invoke-DispatcherFlush
+                } while ($NextUri)
+
+                if ($RawDevices.Count -eq 0) {
+                    $PnlLoading.Visibility = [System.Windows.Visibility]::Collapsed
                     $PrgLoading.Visibility = [System.Windows.Visibility]::Collapsed
                     if ($Query) {
                         Update-Status "No devices found for '$Query'."
@@ -225,29 +254,38 @@ function Show-IntuneLapsGui {
                     return
                 }
 
-                # Enrich each device with LAPS Active status via a single bulk call
+                # ── Enrich with LAPS Active status (single bulk call)
+                [int]$TotalDevices     = $RawDevices.Count
+                $TxtLoadingStatus.Text = "Checking LAPS status for $TotalDevices device(s)..."
+                Invoke-DispatcherFlush
+
                 $LapsActiveNames = Get-LapsActiveDeviceNames
-                $EnrichedDevices = @(foreach ($Dev in $Devices) {
+
+                $EnrichedDevices = @(foreach ($Dev in $RawDevices) {
                     [PSCustomObject]@{
-                        DeviceId         = $Dev.DeviceId
-                        DeviceName       = $Dev.DeviceName
-                        OperatingSystem  = $Dev.OperatingSystem
-                        OsVersion        = $Dev.OsVersion
-                        ManagementState  = $Dev.ManagementState
-                        LastSyncDateTime = $Dev.LastSyncDateTime
+                        DeviceId         = $Dev.azureADDeviceId
+                        DeviceName       = $Dev.deviceName
+                        OperatingSystem  = $Dev.operatingSystem
+                        OsVersion        = $Dev.osVersion
+                        ManagementState  = $Dev.managementState
+                        LastSyncDateTime = $Dev.lastSyncDateTime
                         LapsActive       = if ($null -eq $LapsActiveNames) { '?' }
-                                           elseif ($LapsActiveNames.Contains($Dev.DeviceName)) { 'Yes' }
+                                           elseif ($LapsActiveNames.Contains($Dev.deviceName)) { 'Yes' }
                                            else { 'No' }
                     }
                 })
+
                 $GridDevices.ItemsSource = $EnrichedDevices
-                $PrgLoading.Visibility = [System.Windows.Visibility]::Collapsed
-                Update-Status "$($Devices.Count) device(s) found."
-                $LblSelectedDevice.Text = '- select a device'
+                $PnlLoading.Visibility   = [System.Windows.Visibility]::Collapsed
+                $PrgLoading.Visibility   = [System.Windows.Visibility]::Collapsed
+                Update-Status "$TotalDevices device(s) found."
+                $LblSelectedDevice.Text  = '- select a device'
             }
             catch {
+                $PnlLoading.Visibility = [System.Windows.Visibility]::Collapsed
                 $PrgLoading.Visibility = [System.Windows.Visibility]::Collapsed
                 Update-Status "Search failed: $_"
+                $LblSelectedDevice.Text = '- select a device'
             }
         }
 
