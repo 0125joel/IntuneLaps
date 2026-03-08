@@ -1,0 +1,380 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="IntuneLaps — LAPS Credential Viewer"
+    Width="720" Height="560"
+    MinWidth="620" MinHeight="480"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="CanResize"
+    x:Name="MainWindow">
+
+    <Window.Resources>
+        <!-- ===== COLOURS (set dynamically from PowerShell based on Windows theme) ===== -->
+        <SolidColorBrush x:Key="BackgroundBrush"        Color="#1E1E2E"/>
+        <SolidColorBrush x:Key="SurfaceBrush"           Color="#2A2A3E"/>
+        <SolidColorBrush x:Key="SurfaceAltBrush"        Color="#313147"/>
+        <SolidColorBrush x:Key="AccentBrush"            Color="#0078D4"/>
+        <SolidColorBrush x:Key="AccentHoverBrush"       Color="#1A8AE0"/>
+        <SolidColorBrush x:Key="DangerBrush"            Color="#D13438"/>
+        <SolidColorBrush x:Key="SuccessBrush"           Color="#107C10"/>
+        <SolidColorBrush x:Key="ForegroundBrush"        Color="#F0F0F0"/>
+        <SolidColorBrush x:Key="MutedBrush"             Color="#9A9AB0"/>
+        <SolidColorBrush x:Key="BorderBrush"            Color="#3C3C5A"/>
+        <SolidColorBrush x:Key="InputBrush"             Color="#252538"/>
+
+        <!-- ===== BUTTON STYLES ===== -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background"   Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground"   Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"      Value="14,7"/>
+            <Setter Property="FontSize"     Value="13"/>
+            <Setter Property="FontWeight"   Value="SemiBold"/>
+            <Setter Property="Cursor"       Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AccentHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+        </Style>
+
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Padding"         Value="4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ===== TEXTBOX STYLE ===== -->
+        <Style x:Key="InputBox" TargetType="TextBox">
+            <Setter Property="Background"        Value="{StaticResource InputBrush}"/>
+            <Setter Property="Foreground"        Value="{StaticResource ForegroundBrush}"/>
+            <Setter Property="BorderBrush"       Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness"   Value="1"/>
+            <Setter Property="Padding"           Value="8,6"/>
+            <Setter Property="FontSize"          Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ===== READ-ONLY CREDENTIAL BOX ===== -->
+        <Style x:Key="CredBox" TargetType="TextBox" BasedOn="{StaticResource InputBox}">
+            <Setter Property="IsReadOnly"  Value="True"/>
+            <Setter Property="FontFamily"  Value="Consolas, Courier New"/>
+            <Setter Property="FontSize"    Value="14"/>
+            <Setter Property="Background"  Value="{StaticResource SurfaceBrush}"/>
+        </Style>
+
+        <!-- ===== DATAGRID STYLE ===== -->
+        <Style TargetType="DataGrid">
+            <Setter Property="Background"            Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Foreground"            Value="{StaticResource ForegroundBrush}"/>
+            <Setter Property="BorderBrush"           Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness"       Value="1"/>
+            <Setter Property="RowBackground"         Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="AlternatingRowBackground" Value="{StaticResource SurfaceAltBrush}"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="VerticalGridLinesBrush"   Value="{StaticResource BorderBrush}"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="SelectionMode"         Value="Single"/>
+            <Setter Property="AutoGenerateColumns"   Value="False"/>
+            <Setter Property="IsReadOnly"            Value="True"/>
+            <Setter Property="CanUserAddRows"        Value="False"/>
+            <Setter Property="GridLinesVisibility"   Value="Horizontal"/>
+            <Setter Property="HeadersVisibility"     Value="Column"/>
+            <Setter Property="ColumnHeaderStyle">
+                <Setter.Value>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background"    Value="{StaticResource SurfaceAltBrush}"/>
+                        <Setter Property="Foreground"    Value="{StaticResource MutedBrush}"/>
+                        <Setter Property="BorderBrush"   Value="{StaticResource BorderBrush}"/>
+                        <Setter Property="Padding"       Value="8,6"/>
+                        <Setter Property="FontSize"      Value="11"/>
+                        <Setter Property="FontWeight"    Value="SemiBold"/>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Window.Background>
+        <SolidColorBrush Color="#1E1E2E"/>
+    </Window.Background>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- Header -->
+            <RowDefinition Height="Auto"/>  <!-- Search bar -->
+            <RowDefinition Height="*"/>     <!-- Results grid (flexible) -->
+            <RowDefinition Height="16"/>    <!-- Spacer -->
+            <RowDefinition Height="Auto"/>  <!-- Credentials panel -->
+            <RowDefinition Height="8"/>     <!-- Spacer -->
+            <RowDefinition Height="Auto"/>  <!-- Status bar -->
+        </Grid.RowDefinitions>
+
+        <!-- ===== HEADER ===== -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="IntuneLaps"
+                       FontSize="22" FontWeight="Bold"
+                       Foreground="{StaticResource AccentBrush}"/>
+            <TextBlock Text="Retrieve LAPS local admin credentials for Intune-managed devices"
+                       FontSize="12"
+                       Foreground="{StaticResource MutedBrush}"
+                       Margin="0,2,0,0"/>
+        </StackPanel>
+
+        <!-- ===== SEARCH BAR ===== -->
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="TxtSearch"
+                     Grid.Column="0"
+                     Style="{StaticResource InputBox}"
+                     Height="36"
+                     VerticalContentAlignment="Center"
+                     Text=""
+                     x:Uid="TxtSearch"/>
+
+            <Button x:Name="BtnSearch"
+                    Grid.Column="2"
+                    Style="{StaticResource PrimaryButton}"
+                    Content="🔍  Search"
+                    Height="36"
+                    x:Uid="BtnSearch"/>
+
+            <Button x:Name="BtnConnect"
+                    Grid.Column="4"
+                    Style="{StaticResource SecondaryButton}"
+                    Content="🔑  Sign In"
+                    Height="36"
+                    x:Uid="BtnConnect"/>
+        </Grid>
+
+        <!-- ===== RESULTS DATAGRID ===== -->
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+            <DataGrid x:Name="GridDevices" x:Uid="GridDevices">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Device Name"     Binding="{Binding DeviceName}"       Width="*"/>
+                    <DataGridTextColumn Header="OS"             Binding="{Binding OperatingSystem}"   Width="100"/>
+                    <DataGridTextColumn Header="OS Version"     Binding="{Binding OsVersion}"         Width="110"/>
+                    <DataGridTextColumn Header="State"          Binding="{Binding ManagementState}"   Width="90"/>
+                    <DataGridTextColumn Header="Last Sync"      Binding="{Binding LastSyncDateTime}"  Width="150"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- ===== CREDENTIALS PANEL ===== -->
+        <Border Grid.Row="4"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="12"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="12"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Panel title + device name label -->
+                <DockPanel Grid.Row="0">
+                    <TextBlock Text="LAPS Credentials"
+                               FontSize="14" FontWeight="SemiBold"
+                               Foreground="{StaticResource ForegroundBrush}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="LblSelectedDevice"
+                               Text="— select a device above"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"/>
+                    <Button x:Name="BtnGetCredentials"
+                            DockPanel.Dock="Right"
+                            Style="{StaticResource PrimaryButton}"
+                            Content="Load Credentials"
+                            IsEnabled="False"
+                            HorizontalAlignment="Right"
+                            x:Uid="BtnGetCredentials"/>
+                </DockPanel>
+
+                <!-- USERNAME ROW -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="110"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="Username"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center"/>
+
+                    <TextBox x:Name="TxtUsername"
+                             Grid.Column="1"
+                             Style="{StaticResource CredBox}"
+                             Height="34"
+                             IsReadOnly="True"
+                             x:Uid="TxtUsername"/>
+
+                    <Button x:Name="BtnCopyUsername"
+                            Grid.Column="3"
+                            Style="{StaticResource IconButton}"
+                            ToolTip="Copy username to clipboard"
+                            IsEnabled="False"
+                            Width="34" Height="34"
+                            x:Uid="BtnCopyUsername">
+                        <TextBlock Text="📋" FontSize="14"/>
+                    </Button>
+                </Grid>
+
+                <!-- PASSWORD ROW -->
+                <Grid Grid.Row="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="110"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="Password"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center"/>
+
+                    <!-- PasswordBox (masked) shown by default -->
+                    <PasswordBox x:Name="PwdPassword"
+                                 Grid.Column="1"
+                                 Height="34"
+                                 Background="{StaticResource InputBrush}"
+                                 Foreground="{StaticResource ForegroundBrush}"
+                                 BorderBrush="{StaticResource BorderBrush}"
+                                 BorderThickness="1"
+                                 Padding="8,6"
+                                 FontFamily="Consolas, Courier New"
+                                 FontSize="14"
+                                 VerticalContentAlignment="Center"
+                                 IsEnabled="False"
+                                 x:Uid="PwdPassword"/>
+
+                    <!-- Plain TextBox (visible when toggled) -->
+                    <TextBox x:Name="TxtPassword"
+                             Grid.Column="1"
+                             Style="{StaticResource CredBox}"
+                             Height="34"
+                             Visibility="Collapsed"
+                             x:Uid="TxtPassword"/>
+
+                    <!-- Toggle visibility button -->
+                    <Button x:Name="BtnTogglePassword"
+                            Grid.Column="3"
+                            Style="{StaticResource IconButton}"
+                            ToolTip="Toggle password visibility"
+                            IsEnabled="False"
+                            Width="34" Height="34"
+                            x:Uid="BtnTogglePassword">
+                        <TextBlock x:Name="TxtToggleIcon" Text="👁" FontSize="14"/>
+                    </Button>
+
+                    <!-- Copy password button -->
+                    <Button x:Name="BtnCopyPassword"
+                            Grid.Column="5"
+                            Style="{StaticResource IconButton}"
+                            ToolTip="Copy password to clipboard (auto-cleared after 30s)"
+                            IsEnabled="False"
+                            Width="34" Height="34"
+                            x:Uid="BtnCopyPassword">
+                        <TextBlock Text="📋" FontSize="14"/>
+                    </Button>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ===== STATUS BAR ===== -->
+        <Border Grid.Row="6"
+                Background="{StaticResource SurfaceAltBrush}"
+                CornerRadius="5"
+                Padding="10,5"
+                Margin="0,12,0,0">
+            <DockPanel>
+                <TextBlock x:Name="LblPermissionLevel"
+                           DockPanel.Dock="Right"
+                           FontSize="11"
+                           Foreground="{StaticResource MutedBrush}"
+                           VerticalAlignment="Center"/>
+                <TextBlock x:Name="LblStatus"
+                           Text="Not connected — click Sign In"
+                           FontSize="11"
+                           Foreground="{StaticResource MutedBrush}"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
