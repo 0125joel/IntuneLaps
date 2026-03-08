@@ -20,8 +20,17 @@ function ConvertFrom-LapsPassword {
 
     process {
         try {
-            [byte[]]$DecodedBytes     = [System.Convert]::FromBase64String($PasswordBase64)
-            [string]$DecodedPassword  = [System.Text.Encoding]::Unicode.GetString($DecodedBytes)
+            [byte[]]$DecodedBytes = [System.Convert]::FromBase64String($PasswordBase64)
+
+            # UTF-16LE encodes every ASCII character as two bytes where the high byte is 0x00.
+            # Detect this by checking byte[1]: if it is 0x00 the payload is UTF-16LE (documented
+            # Windows LAPS format). If not, fall back to UTF-8 (some Intune LAPS configurations).
+            [bool]$IsUtf16Le = ($DecodedBytes.Length -ge 2) -and ($DecodedBytes[1] -eq 0)
+            [string]$DecodedPassword = if ($IsUtf16Le) {
+                [System.Text.Encoding]::Unicode.GetString($DecodedBytes)
+            } else {
+                [System.Text.Encoding]::UTF8.GetString($DecodedBytes)
+            }
             return $DecodedPassword
         }
         catch {

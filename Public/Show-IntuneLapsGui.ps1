@@ -124,6 +124,7 @@ function Show-IntuneLapsGui {
         $BtnCopyPassword   = $Window.FindName('BtnCopyPassword')
         $LblStatus         = $Window.FindName('LblStatus')
         $LblPermissionLevel= $Window.FindName('LblPermissionLevel')
+        $PrgLoading        = $Window.FindName('PrgLoading')
 
         # ─── Internal state ────────────────────────────────────────────────────────
         [bool]$script:PasswordVisible  = $false
@@ -204,6 +205,7 @@ function Show-IntuneLapsGui {
             $GridDevices.ItemsSource = $null
             $BtnGetCredentials.IsEnabled = $false
             $LblSelectedDevice.Text = 'Searching...'
+            $PrgLoading.Visibility = [System.Windows.Visibility]::Visible
 
             try {
                 if ($Query) {
@@ -213,6 +215,7 @@ function Show-IntuneLapsGui {
                 }
 
                 if ($null -eq $Devices -or $Devices.Count -eq 0) {
+                    $PrgLoading.Visibility = [System.Windows.Visibility]::Collapsed
                     if ($Query) {
                         Update-Status "No devices found for '$Query'."
                     } else {
@@ -238,10 +241,12 @@ function Show-IntuneLapsGui {
                     }
                 })
                 $GridDevices.ItemsSource = $EnrichedDevices
-                Update-Status "$($Devices.Count) device(s) found. Select a device below."
+                $PrgLoading.Visibility = [System.Windows.Visibility]::Collapsed
+                Update-Status "$($Devices.Count) device(s) found."
                 $LblSelectedDevice.Text = '- select a device'
             }
             catch {
+                $PrgLoading.Visibility = [System.Windows.Visibility]::Collapsed
                 Update-Status "Search failed: $_"
             }
         }

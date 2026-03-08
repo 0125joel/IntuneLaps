@@ -100,7 +100,16 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="5"
                                 Padding="{TemplateBinding Padding}">
-                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <ScrollViewer x:Name="PART_ContentHost" Grid.Row="1"
+                                              VerticalScrollBarVisibility="Hidden"
+                                              HorizontalScrollBarVisibility="Hidden"/>
+                            </Grid>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -113,6 +122,37 @@
             <Setter Property="FontFamily"  Value="Consolas, Courier New"/>
             <Setter Property="FontSize"    Value="14"/>
             <Setter Property="Background"  Value="{StaticResource SurfaceBrush}"/>
+        </Style>
+
+        <!-- ===== PASSWORD BOX STYLE (matches CredBox, stays fully visible when disabled) ===== -->
+        <Style x:Key="CredPasswordBox" TargetType="PasswordBox">
+            <Setter Property="Foreground"      Value="{StaticResource ForegroundBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="8,6"/>
+            <Setter Property="FontFamily"      Value="Consolas, Courier New"/>
+            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <ScrollViewer x:Name="PART_ContentHost" Grid.Row="1"
+                                              VerticalScrollBarVisibility="Hidden"/>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- ===== DATAGRID STYLE ===== -->
@@ -185,13 +225,31 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBox x:Name="TxtSearch"
-                     Grid.Column="0"
-                     Style="{StaticResource InputBox}"
-                     Height="36"
-                     VerticalContentAlignment="Center"
-                     Text=""
-                     x:Uid="TxtSearch"/>
+            <Grid Grid.Column="0" Height="36">
+                <TextBox x:Name="TxtSearch"
+                         Style="{StaticResource InputBox}"
+                         Height="36"
+                         VerticalContentAlignment="Center"
+                         Text=""
+                         x:Uid="TxtSearch"/>
+                <TextBlock Text="Search devices by name..."
+                           IsHitTestVisible="False"
+                           Foreground="{StaticResource MutedBrush}"
+                           FontSize="13"
+                           Padding="10,0,0,0"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, ElementName=TxtSearch}" Value="">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
 
             <Button x:Name="BtnSearch"
                     Grid.Column="2"
@@ -324,14 +382,7 @@
                     <PasswordBox x:Name="PwdPassword"
                                  Grid.Column="1"
                                  Height="34"
-                                 Background="{StaticResource InputBrush}"
-                                 Foreground="{StaticResource ForegroundBrush}"
-                                 BorderBrush="{StaticResource BorderBrush}"
-                                 BorderThickness="1"
-                                 Padding="8,6"
-                                 FontFamily="Consolas, Courier New"
-                                 FontSize="14"
-                                 VerticalContentAlignment="Center"
+                                 Style="{StaticResource CredPasswordBox}"
                                  IsEnabled="False"
                                  x:Uid="PwdPassword"/>
 
@@ -349,7 +400,7 @@
                             Style="{StaticResource IconButton}"
                             ToolTip="Toggle password visibility"
                             IsEnabled="False"
-                            Width="34" Height="34"
+                            Height="34"
                             x:Uid="BtnTogglePassword">
                         <TextBlock x:Name="TxtToggleIcon" Text="[Show]" FontSize="14"/>
                     </Button>
@@ -372,20 +423,30 @@
         <Border Grid.Row="6"
                 Background="{StaticResource SurfaceAltBrush}"
                 CornerRadius="5"
-                Padding="10,5"
+                Padding="10,6"
                 Margin="0,12,0,0">
-            <DockPanel>
-                <TextBlock x:Name="LblPermissionLevel"
-                           DockPanel.Dock="Right"
-                           FontSize="11"
-                           Foreground="{StaticResource MutedBrush}"
-                           VerticalAlignment="Center"/>
-                <TextBlock x:Name="LblStatus"
-                           Text="Not connected — click Sign In"
-                           FontSize="11"
-                           Foreground="{StaticResource MutedBrush}"
-                           VerticalAlignment="Center"/>
-            </DockPanel>
+            <StackPanel>
+                <ProgressBar x:Name="PrgLoading"
+                             Height="3"
+                             Margin="0,0,0,5"
+                             Foreground="{StaticResource AccentBrush}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             IsIndeterminate="True"
+                             Visibility="Collapsed"/>
+                <DockPanel>
+                    <TextBlock x:Name="LblPermissionLevel"
+                               DockPanel.Dock="Right"
+                               FontSize="11"
+                               Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="LblStatus"
+                               Text="Not connected — click Sign In"
+                               FontSize="11"
+                               Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center"/>
+                </DockPanel>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>
