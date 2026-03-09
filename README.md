@@ -1,33 +1,32 @@
 # IntuneLaps
 
-IntuneLaps is a PowerShell module that lets helpdesk staff and administrators look up Windows LAPS credentials for Intune-managed devices. It connects to the Microsoft Graph API using your own Entra ID account, so no App Registration or service principal is needed.
+IntuneLaps is a PowerShell module for helpdesk staff and administrators who need to look up Windows LAPS credentials for Intune-managed devices. It authenticates using your own Entra ID account, so there is no need for an App Registration or service principal.
 
-The module works both as a WPF desktop application and as a set of CLI commands, depending on what you prefer.
+The module comes with a WPF desktop application for everyday use and a full set of CLI commands for scripting and automation.
 
 ## What it does
 
-The GUI loads all your managed devices on sign-in and shows a **LAPS Active** column so you immediately know which devices have a LAPS record. Select a device, click Load Credentials, and the username and password are retrieved based on your permissions. Copied passwords are automatically cleared from the clipboard after 30 seconds.
+When you open the GUI, all your managed devices load automatically. A **LAPS Active** column shows at a glance which devices have a LAPS record. Select a device, click **Load Credentials**, and the username and password are retrieved based on your role. Passwords copied to clipboard are cleared automatically after 30 seconds.
 
-In the CLI, `Find-IntuneLapsDevice` supports prefix search and full pagination, with a built-in progress bar that updates per page. Results can be piped directly into `Get-IntuneLapsCredential`.
+From the CLI, `Find-IntuneLapsDevice` searches by name prefix with full OData pagination and a progress bar that updates per page. Results pipe directly into `Get-IntuneLapsCredential`.
 
-Other things worth mentioning:
+A few other things the module handles for you:
 
-- 🌗 The GUI follows your Windows dark or light mode setting
-- 🔄 Graph API 429 throttle responses are handled automatically with exponential backoff
-- 👁 Passwords can be toggled between masked and visible in the GUI
+- 🌗 The GUI adapts to your Windows dark or light mode setting
+- 🔄 Graph API throttle responses (429) are retried automatically with exponential backoff
+- 👁 Passwords can be toggled between masked and plain text in the GUI
 
 ## Requirements
 
 - Windows PowerShell 5.1 or PowerShell 7+
-- An Entra ID account with sufficient permissions (see the permissions section below)
-- The `Microsoft.Graph.Authentication` module (version 2.0.0 or higher, installed automatically on first use)
+- The `Microsoft.Graph.Authentication` module version 2.0.0 or higher (installed automatically on first use)
 - An Entra ID account with at least Helpdesk Administrator role to retrieve usernames and metadata, or Cloud Device Administrator / Intune Administrator to also retrieve passwords
 
-The WPF GUI only runs on Windows. The CLI functions work on any platform that supports PowerShell.
+The GUI only runs on Windows. The CLI commands work on any platform that supports PowerShell.
 
 ## Installation
 
-You can install IntuneLaps directly from the PowerShell Gallery:
+Install from the PowerShell Gallery:
 
 ```powershell
 Install-Module -Name IntuneLaps
@@ -50,7 +49,7 @@ Show-IntuneLapsGui
 1. Click **Sign In** and authenticate with your Entra ID account
 2. All managed devices load automatically with their LAPS status
 3. Search by device name if needed, select a row, and click **Load Credentials**
-4. Use the copy buttons to copy the username or password to clipboard
+4. Use the copy buttons for the username or password
 5. Click **Sign Out** or close the window when you are done
 
 ## Using the CLI
@@ -59,10 +58,10 @@ Show-IntuneLapsGui
 # Sign in
 Connect-IntuneLaps
 
-# Search for devices by name prefix
+# Search by name prefix
 Find-IntuneLapsDevice -DeviceName 'DESKTOP-'
 
-# Or search for an exact match
+# Or require an exact match
 Find-IntuneLapsDevice -DeviceName 'WS001' -ExactMatch
 
 # Get username and metadata only
@@ -71,7 +70,7 @@ Get-IntuneLapsCredential -DeviceId '<azure-ad-device-id>'
 # Get full credentials including the password
 Get-IntuneLapsCredential -DeviceId '<azure-ad-device-id>' -IncludePassword
 
-# Find a device and retrieve its credentials in one line
+# Find and retrieve credentials in one line
 Find-IntuneLapsDevice -DeviceName 'LAPTOP-HR01' | Get-IntuneLapsCredential -IncludePassword
 
 # Sign out when done
@@ -86,25 +85,25 @@ Opens an interactive browser sign-in to Microsoft Graph. If a session is already
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `-TenantId` | String | No | Entra tenant ID or domain name. Use this when you need to connect to a specific tenant instead of the default cached account. |
+| `-TenantId` | String | No | Entra tenant ID or domain name. Use this to connect to a specific tenant instead of the default cached account. |
 
 ### Find-IntuneLapsDevice
 
-Searches for Intune-managed devices by name. Results are returned as objects and can be piped directly into `Get-IntuneLapsCredential`. When called without parameters it returns all managed devices. A built-in progress bar shows loading status per page.
+Searches for Intune-managed devices by name. Returns objects that can be piped into `Get-IntuneLapsCredential`. Calling it without parameters returns all devices. A progress bar shows how many devices have been loaded per page.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `-DeviceName` | String | No | Device name or prefix to search for. Uses a server-side `startsWith` filter. Omit to return all devices. |
-| `-ExactMatch` | Switch | No | When specified, requires an exact name match instead of a prefix search. |
+| `-ExactMatch` | Switch | No | Requires an exact name match instead of a prefix search. |
 
 ### Get-IntuneLapsCredential
 
-Retrieves the LAPS credential record for a device. Without `-IncludePassword` only the username and metadata are returned, which works with basic Helpdesk Administrator permissions. Adding `-IncludePassword` requires Cloud Device Administrator or Intune Administrator role.
+Retrieves the LAPS credential record for a device. Without `-IncludePassword` only the username and metadata are returned, which works with Helpdesk Administrator permissions. Adding `-IncludePassword` requires Cloud Device Administrator or Intune Administrator role.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `-DeviceId` | String | Yes | The Azure AD device object ID (GUID). Accepts pipeline input from `Find-IntuneLapsDevice`. |
-| `-IncludePassword` | Switch | No | When specified, also retrieves and decodes the LAPS password. Requires elevated permissions. |
+| `-IncludePassword` | Switch | No | Also retrieves and decodes the LAPS password. Requires elevated permissions. |
 
 ### Disconnect-IntuneLaps
 
@@ -116,7 +115,7 @@ Launches the WPF desktop application. If a Graph session is already active the G
 
 ## Permissions
 
-The module uses delegated authentication only. It acts on behalf of the signed-in user and is limited to whatever that user is allowed to do.
+The module uses delegated authentication only. It acts on behalf of the signed-in user and is limited to what that user is allowed to do in Entra.
 
 | What you can do | Required Graph scope | Required Entra role |
 |---|---|---|
@@ -124,11 +123,11 @@ The module uses delegated authentication only. It acts on behalf of the signed-i
 | View username and metadata | `DeviceLocalCredential.ReadBasic.All` | Helpdesk Administrator, Security Reader |
 | View the password | `DeviceLocalCredential.Read.All` | Cloud Device Administrator, Intune Administrator |
 
-The module checks the active token scopes after sign-in and adjusts the interface accordingly. If your account does not have password access, the password field and copy button are disabled automatically.
+The module checks token scopes after sign-in and adjusts the interface accordingly. If your account does not have password access, the password field and copy button are disabled automatically.
 
 ## Connecting to a different tenant
 
-Windows Web Account Manager will silently re-authenticate using your default cached account. If you need to connect to a different tenant, pass the tenant ID explicitly:
+Windows Web Account Manager re-authenticates silently using your default cached account. To connect to a different tenant, pass the tenant ID explicitly:
 
 ```powershell
 Connect-IntuneLaps -TenantId 'contoso.onmicrosoft.com'
@@ -142,7 +141,7 @@ Invoke-Pester .\Tests\IntuneLaps.Tests.ps1
 
 ## Graph API endpoints
 
-All endpoints used are GA (v1.0). No beta APIs are required.
+All endpoints are GA (v1.0). No beta APIs are used.
 
 | Action | Endpoint |
 |---|---|
