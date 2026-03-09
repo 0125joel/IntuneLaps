@@ -11,6 +11,10 @@
     # Requirements
     PowerShellVersion = '5.1'
 
+    RequiredModules = @(
+        @{ ModuleName = 'Microsoft.Graph.Authentication'; ModuleVersion = '2.0.0' }
+    )
+
     # Exported functions (Public only)
     FunctionsToExport = @(
         'Connect-IntuneLaps'
