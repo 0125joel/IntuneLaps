@@ -36,12 +36,14 @@ jobs:
           Copy-Item . -Destination $staging -Recurse -Force
 
           # Remove repo-only files and folders that should not be in the Gallery package
-          Remove-Item "$staging\.agent"   -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item "$staging\.github"  -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item "$staging\.git"     -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item "$staging\Tests"    -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item "$staging\CLAUDE.md"         -Force -ErrorAction SilentlyContinue
-          Remove-Item "$staging\README.md"         -Force -ErrorAction SilentlyContinue
+          Remove-Item "$staging\.agent"            -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$staging\.github"           -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$staging\.git"              -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$staging\.vscode"           -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$staging\Tests"             -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$staging\CLAUDE.md"                  -Force -ErrorAction SilentlyContinue
+          Remove-Item "$staging\README.md"                  -Force -ErrorAction SilentlyContinue
+          Remove-Item "$staging\*.nuspec"                   -Force -ErrorAction SilentlyContinue
 
       - name: Publish to PowerShell Gallery
         shell: pwsh
