@@ -65,10 +65,10 @@ Find-IntuneLapsDevice -DeviceName 'DESKTOP-'
 Find-IntuneLapsDevice -DeviceName 'WS001' -ExactMatch
 
 # Get username and metadata only
-Get-IntuneLapsCredential -DeviceId '<azure-ad-device-id>'
+Get-IntuneLapsCredential -DeviceId '<entra-id-device-id>'
 
 # Get full credentials including the password
-Get-IntuneLapsCredential -DeviceId '<azure-ad-device-id>' -IncludePassword
+Get-IntuneLapsCredential -DeviceId '<entra-id-device-id>' -IncludePassword
 
 # Find and retrieve credentials in one line
 Find-IntuneLapsDevice -DeviceName 'LAPTOP-HR01' | Get-IntuneLapsCredential -IncludePassword
@@ -102,7 +102,7 @@ Retrieves the LAPS credential record for a device. Without `-IncludePassword` on
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `-DeviceId` | String | Yes | The Azure AD device object ID (GUID). Accepts pipeline input from `Find-IntuneLapsDevice`. |
+| `-DeviceId` | String | Yes | The Entra ID device object ID (GUID). Accepts pipeline input from `Find-IntuneLapsDevice`. |
 | `-IncludePassword` | Switch | No | Also retrieves and decodes the LAPS password. Requires elevated permissions. |
 
 ### Disconnect-IntuneLaps
