@@ -46,11 +46,11 @@ Import-Module .\IntuneLaps.psd1
 Show-IntuneLapsGui
 ```
 
-1. Click **Sign In** and authenticate with your Entra ID account
+1. Click **Sign In** and authenticate with your Entra ID account. Already ran `Connect-IntuneLaps` in the CLI? The GUI will reuse that session and skip the login prompt
 2. All managed devices load automatically with their LAPS status
 3. Search by device name if needed, select a row, and click **Load Credentials**
 4. Use the copy buttons for the username or password
-5. Click **Sign Out** or close the window when you are done
+5. Click **Sign Out** or just close the window. Either way you get signed out and the clipboard is wiped
 
 ## Using the CLI
 
