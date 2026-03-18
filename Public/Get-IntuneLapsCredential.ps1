@@ -73,7 +73,8 @@ function Get-IntuneLapsCredential {
 
                     if ($CredResponse.credentials -and $CredResponse.credentials.Count -gt 0) {
                         # Return the most recent credential (first entry = latest backup)
-                        $LatestCred  = $CredResponse.credentials | Sort-Object backupDateTime -Descending | Select-Object -First 1
+						# Sort error?
+						$LatestCred = $CredResponse.credentials | Sort-Object { [datetime]$_.backupDateTime } -Descending | Select-Object -First 1
                         $AccountName = $LatestCred.accountName
                         $Password    = ConvertFrom-LapsPassword -PasswordBase64 $LatestCred.passwordBase64
                         $PasswordRetrieved = $true
