@@ -24,6 +24,7 @@ function Find-IntuneLapsDevice {
     [OutputType([PSCustomObject])]
     param(
         [Parameter(Mandatory = $false, ValueFromPipeline = $true)]
+        [AllowEmptyString()]
         [string]$DeviceName,
 
         [Parameter(Mandatory = $false)]
@@ -32,14 +33,8 @@ function Find-IntuneLapsDevice {
 
     begin {
         $ErrorActionPreference = 'Stop'
-
-        # Verify we're connected
-        try {
-            $null = Get-MgContext -ErrorAction Stop
-        }
-        catch {
-            throw 'Not connected. Run Connect-IntuneLaps before searching for devices.'
-        }
+        $Session = Get-CurrentSession
+        $Session.AssertMinimumLevel([LapsPermissionLevel]::Metadata)
     }
 
     process {
@@ -47,11 +42,12 @@ function Find-IntuneLapsDevice {
             # Build OData filter — server-side, Filter-Left principle
             [string]$Filter = ''
             if (-not [string]::IsNullOrWhiteSpace($DeviceName)) {
+                [string]$SafeName = $DeviceName -replace "'", "''"
                 if ($ExactMatch) {
-                    $Filter = "deviceName eq '$DeviceName'"
+                    $Filter = "deviceName eq '$SafeName'"
                 }
                 else {
-                    $Filter = "startsWith(deviceName,'$DeviceName')"
+                    $Filter = "startsWith(deviceName,'$SafeName')"
                 }
             }
 
@@ -66,21 +62,17 @@ function Find-IntuneLapsDevice {
             }
 
             # Paginate through all results via @odata.nextLink (Graph caps at 100 items per page)
-            $AllDevices = [System.Collections.Generic.List[object]]::new()
-            [int]$Page = 0
-            do {
-                $Page++
+            $AllDevices = Invoke-MgGraphPagedRequest -Uri $NextUri -OnPageLoaded {
+                param([int]$Count)
                 Write-Progress -Activity 'Find-IntuneLapsDevice' `
-                               -Status "Loading devices... ($($AllDevices.Count) loaded, page $Page)" `
+                               -Status "Loading devices... ($Count loaded)" `
                                -PercentComplete -1
-
-                $Response = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $NextUri }
-                if ($Response.value) {
-                    foreach ($Device in $Response.value) { $AllDevices.Add($Device) }
-                }
-                $NextUri = $Response.'@odata.nextLink'
-            } while ($NextUri)
+            }
             Write-Progress -Activity 'Find-IntuneLapsDevice' -Completed
+
+            if ($Session.HasAuScopedRoles()) {
+                Write-Warning 'Your role is scoped to one or more Administrative Units. Results may not include all tenant devices.'
+            }
 
             if ($AllDevices.Count -eq 0) {
                 if ($DeviceName) {

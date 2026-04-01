@@ -1,7 +1,7 @@
 @{
     # Module metadata
     RootModule        = 'IntuneLaps.psm1'
-    ModuleVersion     = '1.0.0'
+    ModuleVersion     = '1.1.0'
     GUID              = 'a3f7c8d1-5e2b-4a9f-b6c3-8d1e0f2a4b5c'
     Author            = 'Joel'
     CompanyName       = 'Community'
@@ -31,8 +31,9 @@
     # Private data
     PrivateData = @{
         PSData = @{
-            Tags       = @('Intune', 'LAPS', 'Graph', 'Security', 'WPF')
-            ProjectUri = 'https://github.com/0125joel/IntuneLaps'
+            Tags        = @('Intune', 'LAPS', 'Graph', 'Security', 'WPF')
+            ProjectUri  = 'https://github.com/0125joel/IntuneLaps'
+            LicenseUri  = 'https://github.com/0125joel/IntuneLaps/blob/main/LICENSE'
         }
     }
 }
