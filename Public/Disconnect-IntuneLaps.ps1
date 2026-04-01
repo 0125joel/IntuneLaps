@@ -14,6 +14,7 @@ function Disconnect-IntuneLaps {
     process {
         try {
             Disconnect-MgGraph -ErrorAction SilentlyContinue
+            $script:CurrentSession = $null
             Write-Verbose 'Disconnected from Microsoft Graph.'
         }
         catch {

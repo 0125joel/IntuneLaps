@@ -31,21 +31,28 @@ function Invoke-MgGraphRequestWithRetry {
             }
             catch {
                 $Attempt++
-                [string]$ErrorText = "$_"
-                [bool]$IsThrottled = $ErrorText -match '\b429\b'
 
-                if ($Attempt -ge $MaxRetries -or -not $IsThrottled) {
-                    throw
-                }
+                # Prefer the actual HTTP status code over string matching (avoids false positives
+                # if "429" appears elsewhere in the error message, e.g. in a device ID or path).
+                [int]$HttpStatus   = 0
+                [int]$WaitSeconds  = [Math]::Pow(2, $Attempt) * 2
 
-                # Honour Retry-After header; fall back to exponential backoff (4, 8, 16 seconds)
-                [int]$WaitSeconds = [Math]::Pow(2, $Attempt) * 2
                 if ($_.Exception.PSObject.Properties['Response'] -and $null -ne $_.Exception.Response) {
+                    $HttpStatus = [int]$_.Exception.Response.StatusCode
+
+                    # Honour Retry-After header; fall back to exponential backoff (4, 8, 16 seconds)
                     [string]$RetryAfterHeader = $_.Exception.Response.Headers['Retry-After']
                     [int]$ParsedSeconds = 0
                     if (-not [string]::IsNullOrEmpty($RetryAfterHeader) -and [int]::TryParse($RetryAfterHeader, [ref]$ParsedSeconds)) {
                         $WaitSeconds = $ParsedSeconds
                     }
+                }
+
+                # Fall back to string matching only when no Response object is available
+                [bool]$IsThrottled = ($HttpStatus -eq 429) -or ($HttpStatus -eq 0 -and "$_" -match '\b429\b')
+
+                if ($Attempt -gt $MaxRetries -or -not $IsThrottled) {
+                    throw
                 }
 
                 Write-Warning "Graph API throttled (429). Waiting $WaitSeconds seconds before retry $Attempt/$MaxRetries..."

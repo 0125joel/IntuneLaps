@@ -7,8 +7,10 @@ function Show-IntuneLapsGui {
         to interactively sign in, search for Intune-managed devices, and retrieve
         LAPS credentials. The GUI respects the Windows dark/light mode setting.
 
-        If already connected via Connect-IntuneLaps, the existing session is reused.
-        Otherwise, clicking "Sign In" within the GUI will trigger authentication.
+        If already connected via Connect-IntuneLaps, the existing session is reused
+        without re-authenticating. The [LapsSession] singleton is reconstructed on
+        the STA thread via Build-LapsSession (WPF STA threads have their own module
+        scope and do not inherit $script:CurrentSession from the calling thread).
     .EXAMPLE
         Show-IntuneLapsGui
     #>
@@ -21,16 +23,12 @@ function Show-IntuneLapsGui {
         # WPF is Windows-only. Fail gracefully on macOS/Linux with a clear message.
         if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
             Write-Warning 'Show-IntuneLapsGui is only supported on Windows (WPF not available on macOS/Linux).'
-            Write-Host 'Use the CLI functions instead:'
-            Write-Host '  Connect-IntuneLaps'
-            Write-Host '  Find-IntuneLapsDevice -DeviceName <name>'
-            Write-Host '  Get-IntuneLapsCredential -DeviceId <id> [-IncludePassword]'
+            Write-Warning 'Use the CLI functions instead: Connect-IntuneLaps | Find-IntuneLapsDevice -DeviceName <name> | Get-IntuneLapsCredential -DeviceId <id>'
             return
         }
 
         # WPF requires STA (Single Threaded Apartment) mode.
         # PowerShell 5.1 runs STA by default; PowerShell 7 (pwsh) runs MTA by default.
-        # If we are in MTA, we must run the GUI on a new STA thread.
         [System.Threading.ApartmentState]$CurrentState = [System.Threading.Thread]::CurrentThread.GetApartmentState()
         if ($CurrentState -ne [System.Threading.ApartmentState]::STA) {
             Write-Verbose 'Running in MTA (PowerShell 7). Launching WPF GUI on a dedicated STA thread...'
@@ -44,7 +42,7 @@ function Show-IntuneLapsGui {
             $StaThread.SetApartmentState([System.Threading.ApartmentState]::STA)
             $StaThread.IsBackground = $true
             $StaThread.Start()
-            $StaThread.Join()   # Block the calling thread until the GUI closes
+            $StaThread.Join()
             return
         }
 
@@ -66,47 +64,7 @@ function Show-IntuneLapsGui {
         $Reader    = [System.Xml.XmlNodeReader]::new($Xaml)
         $Window    = [System.Windows.Markup.XamlReader]::Load($Reader)
 
-        # ─── Detect Windows dark/light mode ───────────────────────────────────────
-        function Get-WindowsIsDarkMode {
-            try {
-                [int]$Value = Get-ItemPropertyValue `
-                    -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' `
-                    -Name 'AppsUseLightTheme' `
-                    -ErrorAction SilentlyContinue
-                return ($Value -eq 0)  # 0 = dark, 1 = light
-            }
-            catch { return $true }  # default to dark
-        }
-
-        # Apply Windows theme-aware colours
-        function Set-WindowTheme {
-            param([bool]$IsDark)
-
-            $Resources = $Window.Resources
-            if ($IsDark) {
-                $Resources['BackgroundBrush']  = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0x1E, 0x1E, 0x2E)
-                $Resources['SurfaceBrush']     = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0x2A, 0x2A, 0x3E)
-                $Resources['SurfaceAltBrush']  = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0x31, 0x31, 0x47)
-                $Resources['ForegroundBrush']  = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0xF0, 0xF0, 0xF0)
-                $Resources['MutedBrush']       = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0x9A, 0x9A, 0xB0)
-                $Resources['InputBrush']       = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0x25, 0x25, 0x38)
-                $Resources['BorderBrush']      = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0x3C, 0x3C, 0x5A)
-                $Window.Background             = $Resources['BackgroundBrush']
-            }
-            else {
-                # Light mode
-                $Resources['BackgroundBrush']  = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0xF5, 0xF5, 0xF5)
-                $Resources['SurfaceBrush']     = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0xFF, 0xFF, 0xFF)
-                $Resources['SurfaceAltBrush']  = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0xEA, 0xEA, 0xF2)
-                $Resources['ForegroundBrush']  = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0x1E, 0x1E, 0x1E)
-                $Resources['MutedBrush']       = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0x60, 0x60, 0x70)
-                $Resources['InputBrush']       = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0xFF, 0xFF, 0xFF)
-                $Resources['BorderBrush']      = [System.Windows.Media.SolidColorBrush][System.Windows.Media.Color]::FromRgb(0xCC, 0xCC, 0xDD)
-                $Window.Background             = $Resources['BackgroundBrush']
-            }
-        }
-
-        Set-WindowTheme -IsDark (Get-WindowsIsDarkMode)
+        Set-WindowTheme -Window $Window -IsDark (Get-WindowsIsDarkMode)
 
         # ─── Get named controls ────────────────────────────────────────────────────
         $TxtSearch         = $Window.FindName('TxtSearch')
@@ -128,70 +86,79 @@ function Show-IntuneLapsGui {
         $PnlLoading        = $Window.FindName('PnlLoading')
         $TxtLoadingStatus  = $Window.FindName('TxtLoadingStatus')
 
-        # ─── Internal state ────────────────────────────────────────────────────────
-        [bool]$script:PasswordVisible  = $false
-        [string]$script:PlainPassword  = $null
-        [System.Windows.Threading.DispatcherTimer]$script:ClipTimer = $null
+        # ─── Internal state hashtable ─────────────────────────────────────────────
+        # Reference type: all event handler closures share the same object.
+        $State = @{
+            PasswordVisible = $false
+            PlainPassword   = [string]$null
+            ClipTimer       = $null
+            Session         = $null    # [LapsSession]
+        }
 
         # ─── Helper: update status bar ────────────────────────────────────────────
         function Update-Status {
-            param([string]$Text, [string]$Level = '')
+            param([string]$Text, [LapsPermissionLevel]$Level = [LapsPermissionLevel]::None)
             $LblStatus.Text = $Text
-            if ($Level -eq 'Full') {
-                $LblPermissionLevel.Text       = '[OK] Full access (username + password)'
-                $LblPermissionLevel.Foreground = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(0x10, 0x7C, 0x10))
+
+            if ($Level -eq [LapsPermissionLevel]::Full) {
+                $DisplayNames = if ($State.Session -and $State.Session.ActiveRoles.Count -gt 0) {
+                    $AuRoleNames = @($State.Session.AuScopedRoles | ForEach-Object { $_.RoleName })
+                    $State.Session.ActiveRoles | ForEach-Object {
+                        if ($AuRoleNames -contains $_) { "$_ (AU-scoped)" } else { $_ }
+                    }
+                } else { $null }
+                $LblPermissionLevel.Text = if ($DisplayNames) {
+                    "[OK] Full access — $($DisplayNames -join ', ')"
+                } else {
+                    '[OK] Full access'
+                }
+                $LblPermissionLevel.Foreground = [System.Windows.Media.SolidColorBrush]::new(
+                    [System.Windows.Media.Color]::FromRgb(0x10, 0x7C, 0x10))
             }
-            elseif ($Level -eq 'Metadata') {
-                $LblPermissionLevel.Text       = '[!] Metadata only (no password access)'
-                $LblPermissionLevel.Foreground = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(0xCA, 0x75, 0x00))
+            elseif ($Level -eq [LapsPermissionLevel]::Metadata) {
+                $RoleNames = if ($State.Session -and $State.Session.ActiveRoles.Count -gt 0) {
+                    $State.Session.ActiveRoles -join ', '
+                } else { $null }
+                $LblPermissionLevel.Text = if ($State.Session -and $State.Session.PimEligibleRoles.Count -gt 0) {
+                    '[!] Metadata only — activate PIM role for full access'
+                } elseif ($RoleNames) {
+                    "[!] Metadata only — $RoleNames"
+                } else {
+                    '[!] Metadata only (no password access)'
+                }
+                $LblPermissionLevel.Foreground = [System.Windows.Media.SolidColorBrush]::new(
+                    [System.Windows.Media.Color]::FromRgb(0xCA, 0x75, 0x00))
             }
             else {
-                $LblPermissionLevel.Text = ''
+                # None or no level provided
+                if ($State.Session -and $State.Session.PimEligibleRoles.Count -gt 0) {
+                    $LblPermissionLevel.Text = '[!] No active LAPS role — PIM-eligible roles detected, activate first'
+                } elseif ($Text -ne '') {
+                    $LblPermissionLevel.Text = '[x] No LAPS permissions'
+                } else {
+                    $LblPermissionLevel.Text = ''
+                }
+                $LblPermissionLevel.Foreground = [System.Windows.Media.SolidColorBrush]::new(
+                    [System.Windows.Media.Color]::FromRgb(0xC4, 0x2B, 0x1C))
             }
         }
 
         # ─── Helper: clipboard auto-clear timer ───────────────────────────────────
         function Start-ClipboardClearTimer {
             param([int]$Seconds = 30)
-            if ($script:ClipTimer) {
-                $script:ClipTimer.Stop()
-                $script:ClipTimer = $null
+            if ($State.ClipTimer) {
+                $State.ClipTimer.Stop()
+                $State.ClipTimer = $null
             }
-            $script:ClipTimer = [System.Windows.Threading.DispatcherTimer]::new()
-            $script:ClipTimer.Interval = [TimeSpan]::FromSeconds($Seconds)
-            $script:ClipTimer.Add_Tick({
+            $State.ClipTimer = [System.Windows.Threading.DispatcherTimer]::new()
+            $State.ClipTimer.Interval = [TimeSpan]::FromSeconds($Seconds)
+            $State.ClipTimer.Add_Tick({
                 [System.Windows.Clipboard]::Clear()
-                $script:ClipTimer.Stop()
-                $script:ClipTimer = $null
+                $State.ClipTimer.Stop()
+                $State.ClipTimer = $null
                 Update-Status "Clipboard cleared automatically after $Seconds seconds."
             })
-            $script:ClipTimer.Start()
-        }
-
-        # ─── Helper: Get all device names that have a LAPS record ───────────────
-        function Get-LapsActiveDeviceNames {
-            # Returns a case-insensitive HashSet of deviceNames with LAPS records,
-            # or $null if the call fails (e.g. insufficient permissions).
-            $LapsNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-            try {
-                [string]$Uri = "https://graph.microsoft.com/v1.0/directory/deviceLocalCredentials?`$select=id,deviceName"
-                do {
-                    $Response = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $Uri }
-                    if ($Response.value) {
-                        foreach ($Entry in $Response.value) {
-                            if (-not [string]::IsNullOrEmpty($Entry.deviceName)) {
-                                $null = $LapsNames.Add($Entry.deviceName)
-                            }
-                        }
-                    }
-                    $Uri = $Response.'@odata.nextLink'
-                } while ($Uri)
-                return $LapsNames
-            }
-            catch {
-                Write-Verbose "Could not retrieve LAPS device list: $_"
-                return $null
-            }
+            $State.ClipTimer.Start()
         }
 
         # ─── Helper: force WPF to process pending render/layout work ─────────────
@@ -221,26 +188,19 @@ function Show-IntuneLapsGui {
             Invoke-DispatcherFlush
 
             try {
-                # ── Inline pagination (mirrors Find-IntuneLapsDevice) so we can
-                #    update the overlay after every page of results.
                 [string]$SelectFields = 'id,azureADDeviceId,deviceName,operatingSystem,osVersion,lastSyncDateTime,managementState'
                 if ($Query) {
-                    [string]$NextUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=startsWith(deviceName,'$Query')&`$select=$SelectFields"
+                    [string]$SafeQuery = $Query -replace "'", "''"
+                    [string]$DeviceUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$filter=startsWith(deviceName,'$SafeQuery')&`$select=$SelectFields"
                 } else {
-                    [string]$NextUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=$SelectFields"
+                    [string]$DeviceUri = "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=$SelectFields"
                 }
 
-                $RawDevices = [System.Collections.Generic.List[object]]::new()
-                do {
-                    $Response = Invoke-MgGraphRequestWithRetry -Parameters @{ Method = 'GET'; Uri = $NextUri }
-                    if ($Response.value) {
-                        foreach ($Device in $Response.value) { $RawDevices.Add($Device) }
-                    }
-                    $NextUri = $Response.'@odata.nextLink'
-
-                    $TxtLoadingStatus.Text = "Loading devices... ($($RawDevices.Count) loaded)"
+                $RawDevices = Invoke-MgGraphPagedRequest -Uri $DeviceUri -OnPageLoaded {
+                    param([int]$Count)
+                    $TxtLoadingStatus.Text = "Loading devices... ($Count loaded)"
                     Invoke-DispatcherFlush
-                } while ($NextUri)
+                }
 
                 if ($RawDevices.Count -eq 0) {
                     $PnlLoading.Visibility = [System.Windows.Visibility]::Collapsed
@@ -254,12 +214,32 @@ function Show-IntuneLapsGui {
                     return
                 }
 
-                # ── Enrich with LAPS Active status (single bulk call)
-                [int]$TotalDevices     = $RawDevices.Count
+                # ── Enrich with LAPS Active status ─────────────────────────────────
+                # Only attempt the bulk call when EffectiveLevel = Full.
+                # The /directory/deviceLocalCredentials endpoint requires Read.All scope;
+                # attempting it with Metadata level causes a 403 storm.
+                [int]$TotalDevices = $RawDevices.Count
                 $TxtLoadingStatus.Text = "Checking LAPS status for $TotalDevices device(s)..."
                 Invoke-DispatcherFlush
 
-                $LapsActiveNames = Get-LapsActiveDeviceNames
+                $LapsActiveNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+                [bool]$LapsLookupSucceeded = $false
+
+                if ($State.Session -and $State.Session.EffectiveLevel -eq [LapsPermissionLevel]::Full) {
+                    try {
+                        [string]$LapsUri = "https://graph.microsoft.com/v1.0/directory/deviceLocalCredentials?`$select=id,deviceName"
+                        $LapsEntries = Invoke-MgGraphPagedRequest -Uri $LapsUri
+                        foreach ($Entry in $LapsEntries) {
+                            if (-not [string]::IsNullOrEmpty($Entry.deviceName)) {
+                                $null = $LapsActiveNames.Add($Entry.deviceName)
+                            }
+                        }
+                        $LapsLookupSucceeded = $true
+                    }
+                    catch {
+                        Write-Verbose "Could not retrieve LAPS device list: $_"
+                    }
+                }
 
                 $EnrichedDevices = @(foreach ($Dev in $RawDevices) {
                     [PSCustomObject]@{
@@ -269,7 +249,8 @@ function Show-IntuneLapsGui {
                         OsVersion        = $Dev.osVersion
                         ManagementState  = $Dev.managementState
                         LastSyncDateTime = $Dev.lastSyncDateTime
-                        LapsActive       = if ($null -eq $LapsActiveNames) { '?' }
+                        LapsActive       = if ($State.Session -and $State.Session.EffectiveLevel -ne [LapsPermissionLevel]::Full) { 'N/A' }
+                                           elseif (-not $LapsLookupSucceeded) { '?' }
                                            elseif ($LapsActiveNames.Contains($Dev.deviceName)) { 'Yes' }
                                            else { 'No' }
                     }
@@ -293,11 +274,9 @@ function Show-IntuneLapsGui {
         $BtnConnect.Add_Click({
             Update-Status 'Signing in to Microsoft Graph...'
             try {
-                $ConnectResult = Connect-IntuneLaps
-                [string]$Level = $ConnectResult.PermissionLevel
-
-                Update-Status "Signed in as: $($ConnectResult.Account)" -Level $Level
-                $BtnSearch.IsEnabled = $true
+                $State.Session = Connect-IntuneLaps
+                Update-Status "Signed in as: $($State.Session.Account)" -Level $State.Session.EffectiveLevel
+                $BtnSearch.IsEnabled     = $true
                 $BtnDisconnect.IsEnabled = $true
                 Invoke-DeviceSearch
             }
@@ -311,16 +290,17 @@ function Show-IntuneLapsGui {
             Update-Status 'Signing out...'
             try {
                 Disconnect-IntuneLaps -ErrorAction SilentlyContinue
+                $State.Session = $null
                 Update-Status 'Not connected - click Sign In to authenticate'
-                $BtnSearch.IsEnabled = $false
+                $BtnSearch.IsEnabled     = $false
                 $BtnDisconnect.IsEnabled = $false
                 $GridDevices.ItemsSource = $null
-                $LblSelectedDevice.Text = '- select a device'
+                $LblSelectedDevice.Text  = '- select a device'
                 $BtnGetCredentials.IsEnabled = $false
-                $TxtUsername.Text = ''
+                $TxtUsername.Text     = ''
                 $PwdPassword.Password = ''
-                $TxtPassword.Text = ''
-                $script:PlainPassword = $null
+                $TxtPassword.Text     = ''
+                $State.PlainPassword  = $null
             }
             catch {
                 Update-Status "Sign out failed: $_"
@@ -328,9 +308,7 @@ function Show-IntuneLapsGui {
         })
 
         # ─── EVENT: Search ────────────────────────────────────────────────────────
-        $BtnSearch.Add_Click({
-            Invoke-DeviceSearch
-        })
+        $BtnSearch.Add_Click({ Invoke-DeviceSearch })
 
         # Support pressing Enter in search box
         $TxtSearch.Add_KeyDown({
@@ -346,13 +324,12 @@ function Show-IntuneLapsGui {
                 [string]$Name = $GridDevices.SelectedItem.DeviceName
                 $LblSelectedDevice.Text = "- $Name"
                 $BtnGetCredentials.IsEnabled = $true
-                # Clear previous credentials
                 $TxtUsername.Text     = ''
                 $PwdPassword.Password = ''
                 $TxtPassword.Text     = ''
-                $script:PlainPassword = $null
-                $BtnCopyUsername.IsEnabled  = $false
-                $BtnCopyPassword.IsEnabled  = $false
+                $State.PlainPassword  = $null
+                $BtnCopyUsername.IsEnabled   = $false
+                $BtnCopyPassword.IsEnabled   = $false
                 $BtnTogglePassword.IsEnabled = $false
             }
         })
@@ -362,42 +339,52 @@ function Show-IntuneLapsGui {
             if ($null -eq $GridDevices.SelectedItem) { return }
 
             [string]$DeviceId = $GridDevices.SelectedItem.DeviceId
-            [string]$Level    = Test-LapsPermission
-            [bool]$CanReadPassword = ($Level -eq 'Full')
-
             Update-Status 'Retrieving LAPS credentials...'
 
             try {
-                $Cred = Get-IntuneLapsCredential -DeviceId $DeviceId -IncludePassword:$CanReadPassword
+                $CredResult = Get-IntuneLapsCredential -DeviceId $DeviceId
 
-                if ($null -eq $Cred) {
+                if ($null -eq $CredResult) {
                     Update-Status 'No LAPS record found for this device. Ensure LAPS is configured and the device has checked in recently.'
                     return
                 }
 
-                $TxtUsername.Text = $Cred.AccountName
-                $BtnCopyUsername.IsEnabled = (-not [string]::IsNullOrEmpty($Cred.AccountName))
+                [bool]$HasCreds = ($null -ne $CredResult.Credentials -and $CredResult.Credentials.Count -gt 0)
 
-                if ($CanReadPassword -and $Cred.PasswordRetrieved) {
-                    $script:PlainPassword = $Cred.Password
-                    $PwdPassword.Password = $Cred.Password
-                    $TxtPassword.Text     = $Cred.Password
+                if ($HasCreds) {
+                    # Display the newest credential (index 0 — sorted desc by BackupDateTime)
+                    # When multiple accounts exist, a count note is shown in the status bar.
+                    $Latest = $CredResult.Credentials[0]
+                    $TxtUsername.Text     = $Latest.AccountName
+                    $State.PlainPassword  = $Latest.Password
+                    $PwdPassword.Password = $Latest.Password
+                    $TxtPassword.Text     = $Latest.Password
+                    $BtnCopyUsername.IsEnabled   = (-not [string]::IsNullOrEmpty($Latest.AccountName))
                     $BtnCopyPassword.IsEnabled   = $true
                     $BtnTogglePassword.IsEnabled = $true
-                    Update-Status "Credentials loaded for: $($Cred.DeviceName)" -Level $Level
+
+                    [string]$CountNote = if ($CredResult.Credentials.Count -gt 1) {
+                        " ($($CredResult.Credentials.Count) accounts — showing newest)"
+                    } else { '' }
+                    Update-Status "Credentials loaded for: $($CredResult.DeviceName)$CountNote" -Level $CredResult.EffectiveLevel
                 }
                 else {
+                    $TxtUsername.Text     = ''
                     $PwdPassword.Password = ''
                     $TxtPassword.Text     = ''
-                    $script:PlainPassword = $null
+                    $State.PlainPassword  = $null
+                    $BtnCopyUsername.IsEnabled   = $false
                     $BtnCopyPassword.IsEnabled   = $false
                     $BtnTogglePassword.IsEnabled = $false
 
-                    if (-not $CanReadPassword) {
-                        Update-Status "Username loaded. Password unavailable - your account lacks 'Cloud Device Administrator' or 'Intune Administrator' role." -Level $Level
+                    if ($CredResult.EffectiveLevel -eq [LapsPermissionLevel]::Full) {
+                        [string]$AuNote = if ($State.Session -and $State.Session.HasAuScopedRoles()) {
+                            ' Your role is AU-scoped — this device may be outside your Administrative Unit.'
+                        } else { '' }
+                        Update-Status "No credentials found for this device.$AuNote" -Level $CredResult.EffectiveLevel
                     }
                     else {
-                        Update-Status "Credentials loaded (no password record found)." -Level $Level
+                        Update-Status 'Metadata loaded — no password access with current permissions.' -Level $CredResult.EffectiveLevel
                     }
                 }
             }
@@ -408,9 +395,8 @@ function Show-IntuneLapsGui {
 
         # ─── EVENT: Toggle password visibility ────────────────────────────────────
         $BtnTogglePassword.Add_Click({
-            $script:PasswordVisible = -not $script:PasswordVisible
-
-            if ($script:PasswordVisible) {
+            $State.PasswordVisible = -not $State.PasswordVisible
+            if ($State.PasswordVisible) {
                 $PwdPassword.Visibility = [System.Windows.Visibility]::Collapsed
                 $TxtPassword.Visibility = [System.Windows.Visibility]::Visible
                 $Window.FindName('TxtToggleIcon').Text = '[Hide]'
@@ -432,40 +418,43 @@ function Show-IntuneLapsGui {
 
         # ─── EVENT: Copy Password ─────────────────────────────────────────────────
         $BtnCopyPassword.Add_Click({
-            if (-not [string]::IsNullOrEmpty($script:PlainPassword)) {
-                [System.Windows.Clipboard]::SetText($script:PlainPassword)
+            if (-not [string]::IsNullOrEmpty($State.PlainPassword)) {
+                [System.Windows.Clipboard]::SetText($State.PlainPassword)
                 Update-Status 'Password copied to clipboard - will be cleared in 30 seconds.'
                 Start-ClipboardClearTimer -Seconds 30
             }
         })
 
         # ─── Check existing Graph session on open ─────────────────────────────────
+        # WPF STA threads have their own module scope — $script:CurrentSession from the
+        # calling thread is not inherited. Build-LapsSession reconstructs the session
+        # from the existing Graph token (no browser) if already authenticated.
         $Window.Add_Loaded({
             try {
                 $Ctx = Get-MgContext -ErrorAction SilentlyContinue
                 if ($Ctx) {
-                    [string]$Level = Test-LapsPermission
-                    Update-Status "Already signed in as: $($Ctx.Account)" -Level $Level
-                    $BtnSearch.IsEnabled = $true
+                    $State.Session = Build-LapsSession
+                    Update-Status "Already signed in as: $($State.Session.Account)" -Level $State.Session.EffectiveLevel
+                    $BtnSearch.IsEnabled     = $true
                     $BtnDisconnect.IsEnabled = $true
                     Invoke-DeviceSearch
                 }
                 else {
-                    Update-Status 'Not connected - click Sign In to authenticate.'
-                    $BtnSearch.IsEnabled = $false
+                    Update-Status 'Not connected — click Sign In to authenticate.'
+                    $BtnSearch.IsEnabled     = $false
                     $BtnDisconnect.IsEnabled = $false
                 }
             }
             catch {
-                Update-Status 'Not connected - click Sign In to authenticate.'
-                $BtnSearch.IsEnabled = $false
+                Update-Status 'Not connected — click Sign In to authenticate.'
+                $BtnSearch.IsEnabled     = $false
                 $BtnDisconnect.IsEnabled = $false
             }
         })
 
         # ─── Clear clipboard and disconnect on window close ──────────────────────
         $Window.Add_Closing({
-            if ($script:ClipTimer) { $script:ClipTimer.Stop() }
+            if ($State.ClipTimer) { $State.ClipTimer.Stop() }
             [System.Windows.Clipboard]::Clear()
             Disconnect-IntuneLaps -ErrorAction SilentlyContinue
         })
