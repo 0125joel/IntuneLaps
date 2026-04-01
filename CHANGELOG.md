@@ -4,9 +4,6 @@
 
 ### Added
 
-- Dual-gate permission model: effective access level is the lower of the API scope gate and the Entra role gate — both must qualify
-- Role evaluation based on stable role template GUIDs instead of display names, making it immune to role renames
-- Global Administrator now correctly grants Full access
 - PIM-eligible role detection: if activating a PIM role would raise your access level, a hint is shown after sign-in
 - Administrative Unit scoping detection: AU-scoped roles are reported and a hint is shown when a 403 is returned for a specific device
 - `Get-IntuneLapsCredential` accepts `-DeviceName` directly — no separate `Find-IntuneLapsDevice` call needed
